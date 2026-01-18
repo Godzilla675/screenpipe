@@ -1177,14 +1177,14 @@ impl DatabaseManager {
             ContentType::OCR => {
                 sqlx::query_scalar(&sql)
                     .bind(if frame_query.is_empty() {
-                        "*".to_owned()
+                        "*"
                     } else {
-                        frame_query.clone()
+                        frame_query.as_str()
                     })
                     .bind(if ocr_query.is_empty() {
-                        "*".to_owned()
+                        "*"
                     } else {
-                        ocr_query.clone()
+                        ocr_query.as_str()
                     })
                     .bind(start_time)
                     .bind(end_time)
