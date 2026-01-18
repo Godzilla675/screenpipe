@@ -1103,7 +1103,6 @@ impl DatabaseManager {
                 let mut sql = String::from(
                     "SELECT COUNT(DISTINCT frames.id) FROM frames JOIN ocr_text ON frames.id = ocr_text.frame_id",
                 );
-                let mut param_index = 1;
                 if frame_query.is_some() {
                     sql.push_str(" JOIN frames_fts ON frames.id = frames_fts.id");
                 }
@@ -1113,6 +1112,7 @@ impl DatabaseManager {
                     );
                 }
                 sql.push_str(" WHERE 1=1");
+                let mut param_index = 1;
                 if frame_query.is_some() {
                     sql.push_str(&format!(" AND frames_fts MATCH ?{param_index}"));
                     param_index += 1;
@@ -1192,8 +1192,6 @@ impl DatabaseManager {
 
         let count: i64 = match content_type {
             ContentType::OCR => {
-                let start_time_param = start_time;
-                let end_time_param = end_time;
                 let min_length_param = min_length.map(|l| l as i64);
                 let max_length_param = max_length.map(|l| l as i64);
                 let mut query_builder = sqlx::query_scalar(&sql);
@@ -1204,8 +1202,8 @@ impl DatabaseManager {
                     query_builder = query_builder.bind(ocr_query);
                 }
                 query_builder
-                    .bind(start_time_param)
-                    .bind(end_time_param)
+                    .bind(start_time)
+                    .bind(end_time)
                     .bind(min_length_param)
                     .bind(max_length_param)
                     .bind(frame_name)
