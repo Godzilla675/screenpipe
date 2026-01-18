@@ -1103,6 +1103,7 @@ impl DatabaseManager {
                 let mut sql = String::from(
                     "SELECT COUNT(DISTINCT frames.id) FROM frames JOIN ocr_text ON frames.id = ocr_text.frame_id",
                 );
+                let mut param_index = 1;
                 if frame_query.is_some() {
                     sql.push_str(" JOIN frames_fts ON frames.id = frames_fts.id");
                 }
@@ -1113,20 +1114,37 @@ impl DatabaseManager {
                 }
                 sql.push_str(" WHERE 1=1");
                 if frame_query.is_some() {
-                    sql.push_str(" AND frames_fts MATCH ?");
+                    sql.push_str(&format!(" AND frames_fts MATCH ?{param_index}"));
+                    param_index += 1;
                 }
                 if ocr_query.is_some() {
-                    sql.push_str(" AND ocr_text_fts MATCH ?");
+                    sql.push_str(&format!(" AND ocr_text_fts MATCH ?{param_index}"));
+                    param_index += 1;
                 }
-                sql.push_str(" AND (? IS NULL OR frames.timestamp >= ?)");
-                sql.push_str(" AND (? IS NULL OR frames.timestamp <= ?)");
-                sql.push_str(
-                    " AND (? IS NULL OR COALESCE(ocr_text.text_length, LENGTH(ocr_text.text)) >= ?)",
-                );
-                sql.push_str(
-                    " AND (? IS NULL OR COALESCE(ocr_text.text_length, LENGTH(ocr_text.text)) <= ?)",
-                );
-                sql.push_str(" AND (? IS NULL OR frames.name LIKE '%' || ? || '%')");
+                let start_index = param_index;
+                param_index += 1;
+                sql.push_str(&format!(
+                    " AND (?{start_index} IS NULL OR frames.timestamp >= ?{start_index})"
+                ));
+                let end_index = param_index;
+                param_index += 1;
+                sql.push_str(&format!(
+                    " AND (?{end_index} IS NULL OR frames.timestamp <= ?{end_index})"
+                ));
+                let min_index = param_index;
+                param_index += 1;
+                sql.push_str(&format!(
+                    " AND (?{min_index} IS NULL OR COALESCE(ocr_text.text_length, LENGTH(ocr_text.text)) >= ?{min_index})"
+                ));
+                let max_index = param_index;
+                param_index += 1;
+                sql.push_str(&format!(
+                    " AND (?{max_index} IS NULL OR COALESCE(ocr_text.text_length, LENGTH(ocr_text.text)) <= ?{max_index})"
+                ));
+                let frame_index = param_index;
+                sql.push_str(&format!(
+                    " AND (?{frame_index} IS NULL OR frames.name LIKE '%' || ?{frame_index} || '%')"
+                ));
                 sql
             }
             ContentType::UI => format!(
@@ -1187,14 +1205,9 @@ impl DatabaseManager {
                 }
                 query_builder
                     .bind(start_time_param)
-                    .bind(start_time_param)
-                    .bind(end_time_param)
                     .bind(end_time_param)
                     .bind(min_length_param)
-                    .bind(min_length_param)
                     .bind(max_length_param)
-                    .bind(max_length_param)
-                    .bind(frame_name)
                     .bind(frame_name)
                     .fetch_one(&self.pool)
                     .await?
