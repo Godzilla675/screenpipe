@@ -1186,13 +1186,13 @@ impl DatabaseManager {
                     query_builder = query_builder.bind(ocr_query);
                 }
                 query_builder
-                    .bind(start_time_param.clone())
                     .bind(start_time_param)
-                    .bind(end_time_param.clone())
+                    .bind(start_time_param)
                     .bind(end_time_param)
-                    .bind(min_length_param.clone())
+                    .bind(end_time_param)
                     .bind(min_length_param)
-                    .bind(max_length_param.clone())
+                    .bind(min_length_param)
+                    .bind(max_length_param)
                     .bind(max_length_param)
                     .bind(frame_name)
                     .bind(frame_name)
