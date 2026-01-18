@@ -161,6 +161,44 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(window_count, 1);
+
+        let combined_count = db
+            .count_search_results(
+                "content",
+                ContentType::OCR,
+                None,
+                None,
+                Some("AppOne"),
+                Some("WindowOne"),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(combined_count, 1);
+
+        let missing_count = db
+            .count_search_results(
+                "",
+                ContentType::OCR,
+                None,
+                None,
+                Some("MissingApp"),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(missing_count, 0);
     }
 
     #[tokio::test]

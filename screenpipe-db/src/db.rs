@@ -1086,50 +1086,49 @@ impl DatabaseManager {
             frame_fts_parts.push(format!("focused:{}", if is_focused { "1" } else { "0" }));
         }
 
-        let frame_query = frame_fts_parts.join(" ");
-        let ocr_query = ocr_fts_parts.join(" ");
+        let frame_query = if frame_fts_parts.is_empty() {
+            None
+        } else {
+            Some(frame_fts_parts.join(" "))
+        };
+        let ocr_query = if ocr_fts_parts.is_empty() {
+            None
+        } else {
+            Some(ocr_fts_parts.join(" "))
+        };
         let ui_query = ui_fts_parts.join(" ");
-        let frame_fts_join = if frame_query.trim().is_empty() {
-            ""
-        } else {
-            "JOIN frames_fts ON frames.id = frames_fts.id"
-        };
-        let frame_fts_condition = if frame_query.trim().is_empty() {
-            ""
-        } else {
-            "AND frames_fts MATCH ?1"
-        };
-        let ocr_fts_join = if ocr_query.trim().is_empty() {
-            ""
-        } else {
-            "JOIN ocr_text_fts ON ocr_text.frame_id = ocr_text_fts.frame_id"
-        };
-        let ocr_fts_condition = if ocr_query.trim().is_empty() {
-            ""
-        } else {
-            "AND ocr_text_fts MATCH ?2"
-        };
 
         let sql = match content_type {
-            ContentType::OCR => format!(
-                r#"SELECT COUNT(DISTINCT frames.id)
-                   FROM frames
-                   JOIN ocr_text ON frames.id = ocr_text.frame_id
-                   {frame_fts_join}
-                   {ocr_fts_join}
-                   WHERE 1=1
-                       {frame_fts_condition}
-                       {ocr_fts_condition}
-                       AND (?3 IS NULL OR frames.timestamp >= ?3)
-                       AND (?4 IS NULL OR frames.timestamp <= ?4)
-                       AND (?5 IS NULL OR COALESCE(ocr_text.text_length, LENGTH(ocr_text.text)) >= ?5)
-                       AND (?6 IS NULL OR COALESCE(ocr_text.text_length, LENGTH(ocr_text.text)) <= ?6)
-                       AND (?7 IS NULL OR frames.name LIKE '%' || ?7 || '%')"#,
-                frame_fts_join = frame_fts_join,
-                ocr_fts_join = ocr_fts_join,
-                frame_fts_condition = frame_fts_condition,
-                ocr_fts_condition = ocr_fts_condition
-            ),
+            ContentType::OCR => {
+                let mut sql = String::from(
+                    "SELECT COUNT(DISTINCT frames.id) FROM frames JOIN ocr_text ON frames.id = ocr_text.frame_id",
+                );
+                if frame_query.is_some() {
+                    sql.push_str(" JOIN frames_fts ON frames.id = frames_fts.id");
+                }
+                if ocr_query.is_some() {
+                    sql.push_str(
+                        " JOIN ocr_text_fts ON ocr_text.frame_id = ocr_text_fts.frame_id",
+                    );
+                }
+                sql.push_str(" WHERE 1=1");
+                if frame_query.is_some() {
+                    sql.push_str(" AND frames_fts MATCH ?");
+                }
+                if ocr_query.is_some() {
+                    sql.push_str(" AND ocr_text_fts MATCH ?");
+                }
+                sql.push_str(" AND (? IS NULL OR frames.timestamp >= ?)");
+                sql.push_str(" AND (? IS NULL OR frames.timestamp <= ?)");
+                sql.push_str(
+                    " AND (? IS NULL OR COALESCE(ocr_text.text_length, LENGTH(ocr_text.text)) >= ?)",
+                );
+                sql.push_str(
+                    " AND (? IS NULL OR COALESCE(ocr_text.text_length, LENGTH(ocr_text.text)) <= ?)",
+                );
+                sql.push_str(" AND (? IS NULL OR frames.name LIKE '%' || ? || '%')");
+                sql
+            }
             ContentType::UI => format!(
                 r#"SELECT COUNT(DISTINCT ui_monitoring.id)
                    FROM {table}
@@ -1175,21 +1174,27 @@ impl DatabaseManager {
 
         let count: i64 = match content_type {
             ContentType::OCR => {
-                sqlx::query_scalar(&sql)
-                    .bind(if frame_query.is_empty() {
-                        "*"
-                    } else {
-                        frame_query.as_str()
-                    })
-                    .bind(if ocr_query.is_empty() {
-                        "*"
-                    } else {
-                        ocr_query.as_str()
-                    })
-                    .bind(start_time)
-                    .bind(end_time)
-                    .bind(min_length.map(|l| l as i64))
-                    .bind(max_length.map(|l| l as i64))
+                let start_time_param = start_time;
+                let end_time_param = end_time;
+                let min_length_param = min_length.map(|l| l as i64);
+                let max_length_param = max_length.map(|l| l as i64);
+                let mut query_builder = sqlx::query_scalar(&sql);
+                if let Some(frame_query) = frame_query.as_deref() {
+                    query_builder = query_builder.bind(frame_query);
+                }
+                if let Some(ocr_query) = ocr_query.as_deref() {
+                    query_builder = query_builder.bind(ocr_query);
+                }
+                query_builder
+                    .bind(start_time_param.clone())
+                    .bind(start_time_param)
+                    .bind(end_time_param.clone())
+                    .bind(end_time_param)
+                    .bind(min_length_param.clone())
+                    .bind(min_length_param)
+                    .bind(max_length_param.clone())
+                    .bind(max_length_param)
+                    .bind(frame_name)
                     .bind(frame_name)
                     .fetch_one(&self.pool)
                     .await?
