@@ -1,7 +1,9 @@
 name: Bounty Test 2039
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   test-windows:
