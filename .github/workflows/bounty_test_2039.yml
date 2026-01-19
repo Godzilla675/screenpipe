@@ -8,6 +8,8 @@ on:
 jobs:
   test-windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout PR Branch
         uses: actions/checkout@v4
@@ -15,6 +17,7 @@ jobs:
           repository: Ashutosh0x/screenpipe
           ref: feature/session-tracking-1560
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
@@ -41,19 +44,27 @@ jobs:
         run: choco install ffmpeg
 
       - name: Build
-        run: cargo build --release --verbose
+        run: cargo build --release --verbose 2>&1 | tee build.log
 
       - name: Run Tests
-        run: cargo test --verbose
+        run: cargo test --verbose 2>&1 | tee test_output.log
 
-      - name: Run Session Manager Test specifically
-        run: cargo test --test session_manager_test --verbose
-
-      - name: Upload Logs
+      - name: Checkout Target Repo for Log Upload
+        uses: actions/checkout@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: test-logs
-          path: |
-            target/release/*.exe
-            target/release/*.pdb
+          repository: Godzilla675/screenpipe
+          path: log_repo
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit Logs
+        if: always()
+        run: |
+          cd log_repo
+          copy ..\test_output.log .
+          copy ..\build.log .
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add test_output.log build.log
+          git commit -m "Add test logs from workflow run"
+          git push
