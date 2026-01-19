@@ -1,0 +1,57 @@
+name: Bounty Test 2039
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout PR Branch
+        uses: actions/checkout@v4
+        with:
+          repository: Ashutosh0x/screenpipe
+          ref: feature/session-tracking-1560
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "10.0"
+          directory: ${{ runner.temp }}/llvm
+
+      - name: Set LIBCLANG_PATH
+        run: echo "LIBCLANG_PATH=$((gcm clang).source -replace 'clang.exe')" >> $env:GITHUB_ENV
+
+      - name: Install FFMPEG
+        run: choco install ffmpeg
+
+      - name: Build
+        run: cargo build --release --verbose
+
+      - name: Run Tests
+        run: cargo test --verbose
+
+      - name: Run Session Manager Test specifically
+        run: cargo test --test session_manager_test --verbose
+
+      - name: Upload Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            target/release/*.exe
+            target/release/*.pdb
